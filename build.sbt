@@ -9,7 +9,7 @@ lazy val root = (project in file("."))
     Defaults.itSettings,
     libraryDependencies ++= Seq(
       "com.github.fd4s" %% "fs2-kafka" % "2.2.0",
-      "com.disneystreaming" %% "weaver-cats" % "0.7.7" % IntegrationTest,
+      "org.typelevel" %% "munit-cats-effect-3" % "1.0.0" % IntegrationTest,
       "org.testcontainers" % "kafka" % "1.16.2" % IntegrationTest
     ),
     testFrameworks += new TestFramework("weaver.framework.CatsEffect")

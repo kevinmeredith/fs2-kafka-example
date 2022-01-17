@@ -1,28 +1,36 @@
 package net
 
-import weaver.IOSuite
 import cats.implicits._
-import scala.concurrent.duration._
 import cats.effect._
-import org.testcontainers.containers.KafkaContainer
-import org.testcontainers.utility.DockerImageName
+import fs2.Stream
+import fs2.kafka.{KafkaProducer, ProducerRecord, ProducerRecords, ProducerSettings, Serializer}
+import munit.CatsEffectSuite
 
 
-object   E2eSuite extends IOSuite {
+  class E2eSuite extends CatsEffectSuite {
 
-  override type Res = KafkaContainer
+  private def kafkaProducer(topic: String): Stream[IO, KafkaProducer.Metrics[IO, String, String]] =
+    KafkaProducer.stream(ProducerSettings(Serializer.string[IO], Serializer.string[IO]).withBootstrapServers("localhost:9092"))
 
-  override def sharedResource: Resource[IO, Res] =
-      Resource.make(
-        acquire = IO(new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.2.1"))) <* IO.sleep(30.seconds)
-      )(
-        release = _ => IO.unit
-      )
+  private final case class Message(key: String, value: String)
 
-  test("test with resource"){ kc: KafkaContainer =>
+  private def produce(messages: List[Message], topic: String): IO[Unit] = {
+    kafkaProducer(topic).evalMap { kp: KafkaProducer[IO, String, String] =>
+      kp.produce(ProducerRecords.apply(
+        messages.map { case Message(key, value) =>
+          ProducerRecord(topic = topic, key = key, value = value)
+        })).flatten.as(())
+    }
+  }.compile.drain
 
 
-    IO(println(">> kc.isCreated: " + kc.isCreated + " | kc.getBootstrapServers" + kc.getBootstrapServers)).as(expect(true))
+  test("test with resource"){
+    for {
+      _ <- produce(List(Message("hi", "world"), Message("goodnight", "moon")), "topic1")
+      ref <- Ref.of[IO, List[String]](Nil)
+      _ <- Main.streamList(ref, "topic1")
+      values <- ref.get
+    } yield (assertEquals(values, List("world", "moon")))
   }
 
 }

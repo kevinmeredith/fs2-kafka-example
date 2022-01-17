@@ -1,15 +1,16 @@
 package net
 
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{Ref, ExitCode, IO, IOApp}
 import fs2.Stream
 import fs2.kafka._
 
 object Main extends IOApp {
 
-  private def processRecord(record: ConsumerRecord[String, String]): IO[(String, String)] = {
-    val keyValue: (String, String) = record.key -> record.value
-    IO(println(s">> key: ${record.key} with value: ${record.value} at offset: ${record.offset}"))
-      .as(keyValue)
+  private def processRecord(record: ConsumerRecord[String, String], ref: Ref[IO, List[String]]): IO[Unit] = {
+    for {
+      _ <- IO(println(s">> key: ${record.key} with value: ${record.value} at offset: ${record.offset}"))
+      _ <- ref.update { acc => record.value :: acc }
+    } yield ()
   }
 
   private val consumerSettings =
@@ -18,16 +19,21 @@ object Main extends IOApp {
       .withBootstrapServers("localhost:9092")
       .withGroupId("group")
 
-  private val stream: Stream[IO, Unit] =
+  private def stream(ref: Ref[IO, List[String]], topic: String): Stream[IO, Unit] =
     KafkaConsumer.stream(consumerSettings)
-      .subscribeTo("topic1")
+      .subscribeTo(topic)
       .records
       .evalMap {
         cr: CommittableConsumerRecord[IO, String, String] =>
-          processRecord(cr.record) *> cr.offset.commit
+          processRecord(cr.record, ref) *> cr.offset.commit
       }
 
+  def streamList(ref: Ref[IO, List[String]], topic: String): IO[Unit] =
+    stream(ref, topic).compile.drain
+
   override def run(args: List[String]): IO[ExitCode] =
-    IO(println("running")) *> stream.compile.drain.as(ExitCode.Success)
+    IO(println("running")) *> {
+      Ref.of[IO, List[String]](Nil).flatMap { streamList(_, "topic1") }
+    }.as(ExitCode.Success)
 
 }
