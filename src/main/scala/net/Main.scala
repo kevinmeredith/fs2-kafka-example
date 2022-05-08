@@ -20,7 +20,8 @@ object Main extends IOApp {
       .withGroupId("group")
 
   private def stream(ref: Ref[IO, List[String]], topic: String): Stream[IO, Unit] =
-    KafkaConsumer.stream(consumerSettings)
+    KafkaConsumer
+      .stream(consumerSettings)
       .subscribeTo(topic)
       .records
       .evalMap {
@@ -29,11 +30,13 @@ object Main extends IOApp {
       }
 
   def streamList(ref: Ref[IO, List[String]], topic: String): IO[Unit] =
-    stream(ref, topic).compile.drain
+    stream(ref, topic).take(2).compile.drain
+
+  val topic = "foobar4"
 
   override def run(args: List[String]): IO[ExitCode] =
     IO(println("running")) *> {
-      Ref.of[IO, List[String]](Nil).flatMap { streamList(_, "topic1") }
+      Ref.of[IO, List[String]](Nil).flatMap { streamList(_, topic) }
     }.as(ExitCode.Success)
 
 }

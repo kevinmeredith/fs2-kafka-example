@@ -7,15 +7,15 @@ import fs2.kafka.{KafkaProducer, ProducerRecord, ProducerRecords, ProducerSettin
 import munit.CatsEffectSuite
 
 
-  class E2eSuite extends CatsEffectSuite {
+class E2eSuite extends CatsEffectSuite {
 
-  private def kafkaProducer(topic: String): Stream[IO, KafkaProducer.Metrics[IO, String, String]] =
+  private val kafkaProducer: Stream[IO, KafkaProducer.Metrics[IO, String, String]] =
     KafkaProducer.stream(ProducerSettings(Serializer.string[IO], Serializer.string[IO]).withBootstrapServers("localhost:9092"))
 
   private final case class Message(key: String, value: String)
 
   private def produce(messages: List[Message], topic: String): IO[Unit] = {
-    kafkaProducer(topic).evalMap { kp: KafkaProducer[IO, String, String] =>
+    kafkaProducer.evalMap { kp: KafkaProducer[IO, String, String] =>
       kp.produce(ProducerRecords.apply(
         messages.map { case Message(key, value) =>
           ProducerRecord(topic = topic, key = key, value = value)
@@ -26,11 +26,11 @@ import munit.CatsEffectSuite
 
   test("test with resource"){
     for {
-      _ <- produce(List(Message("hi", "world"), Message("goodnight", "moon")), "topic1")
+      _ <- produce(List(Message("hi", "world"), Message("goodnight", "moon")), Main.topic)
       ref <- Ref.of[IO, List[String]](Nil)
-      _ <- Main.streamList(ref, "topic1")
+      _ <- Main.streamList(ref, Main.topic)
       values <- ref.get
-    } yield (assertEquals(values, List("world", "moon")))
+    } yield (assertEquals(values, List("moon", "world")))
   }
 
 }
