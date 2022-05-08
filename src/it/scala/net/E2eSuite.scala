@@ -28,7 +28,7 @@ class E2eSuite extends CatsEffectSuite {
     for {
       _ <- produce(List(Message("hi", "world"), Message("goodnight", "moon")), Main.topic)
       ref <- Ref.of[IO, List[String]](Nil)
-      _ <- Main.streamList(ref, Main.topic)
+      _ <- Main.streamList(ref, Main.topic, _.take(2))
       values <- ref.get
     } yield (assertEquals(values, List("moon", "world")))
   }

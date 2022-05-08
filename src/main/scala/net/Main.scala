@@ -8,7 +8,7 @@ object Main extends IOApp {
 
   private def processRecord(record: ConsumerRecord[String, String], ref: Ref[IO, List[String]]): IO[Unit] = {
     for {
-      _ <- IO(println(s">> key: ${record.key} with value: ${record.value} at offset: ${record.offset}"))
+      _ <- IO(println(s">> key: ${record.key} | value: ${record.value} | offset: ${record.offset}"))
       _ <- ref.update { acc => record.value :: acc }
     } yield ()
   }
@@ -29,14 +29,14 @@ object Main extends IOApp {
           processRecord(cr.record, ref) *> cr.offset.commit
       }
 
-  def streamList(ref: Ref[IO, List[String]], topic: String): IO[Unit] =
-    stream(ref, topic).take(2).compile.drain
+  def streamList(ref: Ref[IO, List[String]], topic: String, streamFn: Stream[IO, Unit] => Stream[IO, Unit]): IO[Unit] =
+    streamFn(stream(ref, topic)).compile.drain
 
-  val topic = "foobar4"
+  val topic = "foobar000"
 
   override def run(args: List[String]): IO[ExitCode] =
     IO(println("running")) *> {
-      Ref.of[IO, List[String]](Nil).flatMap { streamList(_, topic) }
+      Ref.of[IO, List[String]](Nil).flatMap { streamList(_, topic, identity) }
     }.as(ExitCode.Success)
 
 }
